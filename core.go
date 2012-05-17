@@ -24,6 +24,10 @@ type StatUpdate struct {
 	Timestamp int64
 }
 
+var (
+	DefaultCapacity = 10
+)
+
 func NewCore() *Core {
 	return &Core{make(map[string]*StatRecord)}
 }
@@ -50,7 +54,7 @@ func (c *Core) Update(up StatUpdate) {
 
 	rec, ok := c.Stats[up.Key]
 	if !ok {
-		rec = &StatRecord{}
+		rec = &StatRecord{Capacity: DefaultCapacity}
 		c.Stats[up.Key] = rec
 	}
 	rec.AppendValue(up.Value, up.Timestamp)
@@ -90,6 +94,10 @@ func (sr *StatRecord) AppendValue(f float64, t int64) {
 			sr.Values = append(sr.Values, Datum{f, t})
 		}
 	} else {
+		previous := sr.w - 1
+		if sr.w == 0 {
+			previous = len(sr.Values) - 1
+		}
 		if sr.Values[sr.w].T == t {
 			if sr.IsCounter {
 				sr.Values[sr.w].Value += f
@@ -98,11 +106,7 @@ func (sr *StatRecord) AppendValue(f float64, t int64) {
 			}
 		} else {
 			if sr.IsCounter {
-				if sr.w == 0 {
-					f += sr.Values[len(sr.Values)-1].Value
-				} else {
-					f += sr.Values[sr.w-1].Value
-				}
+				f += sr.Values[previous].Value
 			}
 			sr.Values[sr.w].Value = f
 			sr.Values[sr.w].T = t
