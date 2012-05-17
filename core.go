@@ -56,13 +56,22 @@ func (c *Core) Update(up StatUpdate) {
 	rec.AppendValue(up.Value, up.Timestamp)
 }
 
+func (sr *StatRecord) CopyValues(arr *[]Datum) {
+	*arr = make([]Datum, len(sr.Values))
+	if sr.w == 0 {
+		copy(*arr, sr.Values)
+	} else {
+		copy(*arr, sr.Values[sr.w:])
+		copy((*arr)[len(sr.Values)-sr.w:], sr.Values[:sr.w])
+	}
+}
+
 func (sr *StatRecord) AppendValue(f float64, t int64) {
 	if sr.Capacity == 0 {
 		sr.Capacity = 1000
 	}
 
 	if len(sr.Values) < sr.Capacity {
-		sr.w++
 		if len(sr.Values) == 0 {
 			sr.Values = append(sr.Values, Datum{f, t})
 			return
@@ -75,6 +84,9 @@ func (sr *StatRecord) AppendValue(f float64, t int64) {
 				sr.Values[at].Value = f
 			}
 		} else {
+			if sr.IsCounter {
+				f += sr.Values[at].Value
+			}
 			sr.Values = append(sr.Values, Datum{f, t})
 		}
 	} else {
@@ -85,6 +97,13 @@ func (sr *StatRecord) AppendValue(f float64, t int64) {
 				sr.Values[sr.w].Value = f
 			}
 		} else {
+			if sr.IsCounter {
+				if sr.w == 0 {
+					f += sr.Values[len(sr.Values)-1].Value
+				} else {
+					f += sr.Values[sr.w-1].Value
+				}
+			}
 			sr.Values[sr.w].Value = f
 			sr.Values[sr.w].T = t
 			sr.w++
