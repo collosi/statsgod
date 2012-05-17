@@ -4,12 +4,12 @@ import (
 	"flag"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
-	"net/http"
 )
 
 var fConfigFile = flag.String("c", "statsgod.config", "path to config file")

@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+var (
+	AccessControlAllowOrigin = "*"
+)
+
 func DataHandler(w http.ResponseWriter, r *http.Request, coreChan chan func(c *Core)) {
 	k := r.FormValue("k")
 	if k == "" {
@@ -21,7 +25,11 @@ func DataHandler(w http.ResponseWriter, r *http.Request, coreChan chan func(c *C
 			http.Error(w, "unknown stat: "+k, http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
+		h := w.Header()
+		if AccessControlAllowOrigin != "" {
+			h.Set("Access-Control-Allow-Origin", AccessControlAllowOrigin)
+		}
+		h.Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		err := enc.Encode(s.Values)
 		if err != nil {
