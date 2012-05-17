@@ -9,6 +9,7 @@ type StatConfig struct {
 	Name      string `json:"name"`
 	Key       string `json:"key"`
 	IsCounter bool   `json:"isCounter"`
+	Capacity  int    `json:"capacity,omitempty"`
 }
 
 type ConfigFile struct {

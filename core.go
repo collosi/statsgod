@@ -25,7 +25,7 @@ type StatUpdate struct {
 }
 
 var (
-	DefaultCapacity = 10
+	DefaultCapacity = 60
 )
 
 func NewCore() *Core {
@@ -72,7 +72,7 @@ func (sr *StatRecord) CopyValues(arr *[]Datum) {
 
 func (sr *StatRecord) AppendValue(f float64, t int64) {
 	if sr.Capacity == 0 {
-		sr.Capacity = 1000
+		sr.Capacity = DefaultCapacity
 	}
 
 	if len(sr.Values) < sr.Capacity {

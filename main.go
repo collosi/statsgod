@@ -81,7 +81,11 @@ func main() {
 func coreFromConfig(cf *ConfigFile) *Core {
 	c := NewCore()
 	for _, s := range cf.Stats {
-		c.Stats[s.Key] = &StatRecord{Name: s.Name}
+		c.Stats[s.Key] = &StatRecord{
+			Name:      s.Name,
+			IsCounter: s.IsCounter,
+			Capacity:  s.Capacity,
+		}
 	}
 	return c
 }

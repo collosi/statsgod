@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sync"
 )
@@ -32,14 +31,11 @@ func DataHandler(w http.ResponseWriter, r *http.Request, coreChan chan func(c *C
 			return
 		}
 		var values []Datum
-		fmt.Printf("%v\n", s.Values)
 		s.CopyValues(&values)
-		fmt.Printf("%v\n", values)
 		enc := json.NewEncoder(w)
 		err := enc.Encode(values)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-
 		}
 	}
 	wg.Wait()
