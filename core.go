@@ -98,7 +98,7 @@ func (sr *StatRecord) AppendValue(f float64, t int64) {
 		if sr.w == 0 {
 			previous = len(sr.Values) - 1
 		}
-		if sr.Values[sr.w].T == t {
+		if sr.Values[previous].T == t {
 			if sr.IsCounter {
 				sr.Values[sr.w].Value += f
 			} else {
