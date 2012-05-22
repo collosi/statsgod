@@ -43,6 +43,5 @@ func (c *Client) Update(k string, value float64) {
 func (c *Client) forwardUpdate(u update) {
 	timestamp := time.Now().Unix()
 	s := fmt.Sprintf("%s %f %d", u.k, u.v, timestamp)
-	println("forwarding", s)
 	io.WriteString(c.c, s)
 }

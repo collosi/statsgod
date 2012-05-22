@@ -42,11 +42,11 @@ func TestSimpleAdds(t *testing.T) {
 	if cr.Values[0].T != 1000 || cr.Values[0].Value != 21.0 {
 		t.Errorf("incorrect first value")
 	}
-	if cr.Values[1].Value != 33.0 {
-		t.Errorf("%f: expected 33.0", cr.Values[2].Value)
+	if cr.Values[1].Value != 12.0 {
+		t.Errorf("%f: expected 12.0", cr.Values[2].Value)
 	}
-	if cr.Values[2].Value != 46.0 {
-		t.Errorf("%f: expected 46.0", cr.Values[2].Value)
+	if cr.Values[2].Value != 13.0 {
+		t.Errorf("%f: expected 13.0", cr.Values[2].Value)
 	}
 }
 
@@ -61,14 +61,11 @@ func TestAddMoreThanCapacity(t *testing.T) {
 		Capacity:  10,
 	}
 
-	countAccumulator := 0.0
 	for i := 1; i <= 50; i++ {
 		core.Update(StatUpdate{"c", float64(i), int64(i)})
 		core.Update(StatUpdate{"c", float64(i * 2), int64(i)})
 		core.Update(StatUpdate{"v", float64(i), int64(i)})
 		core.Update(StatUpdate{"v", float64(i * 2), int64(i)})
-
-		countAccumulator += float64(i * 3)
 
 		var counts []Datum
 		var vals []Datum
@@ -78,8 +75,8 @@ func TestAddMoreThanCapacity(t *testing.T) {
 		if len(counts) != intMin(i, 10) {
 			t.Errorf("%d: expected %d counts", len(counts), intMin(i, 10))
 		}
-		if counts[len(counts)-1].T != int64(i) || counts[len(counts)-1].Value != countAccumulator {
-			t.Errorf("%v: unexpected count entry at %d (%f)", counts[len(counts)-1], i, countAccumulator)
+		if counts[len(counts)-1].T != int64(i) || counts[len(counts)-1].Value != float64(3*i) {
+			t.Errorf("%v: unexpected count entry at %d (%f)", counts[len(counts)-1], i, float64(3*i))
 		}
 		if len(vals) != intMin(i, 10) {
 			t.Errorf("%d: expected %d vals", len(vals), intMin(i, 10))
