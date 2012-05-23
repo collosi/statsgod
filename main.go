@@ -9,6 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"encoding/json"
+	"sync"
+	"strconv"
 )
 
 var fConfigFile = flag.String("c", "statsgod.config", "path to config file")
@@ -22,15 +25,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v: error reading config file", err)
 	}
-	s := server.NewServer(cf, *fConfigFile, *fHttpPort, *fStatsPort)
+	s := server.NewServer(cf, *fConfigFile, *fStatsPort)
 
 	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
-		DataHandler(w, r, s.FuncChan)
+		dataHandler(w, r, s.FuncChan)
 	})
 
-	tcpAddress, err := net.ResolveTCPAddr("tcp", ":"+strconv.FormatInt(s.HttpPort, 10))
+	tcpAddress, err := net.ResolveTCPAddr("tcp", ":"+strconv.FormatInt(*fHttpPort, 10))
 	if err != nil {
-		return err
+		log.Fatalf("%v: error resolving http listen port %d", err, *fHttpPort) 
 	}
 	tcpConn, err := net.ListenTCP("tcp", tcpAddress)
 	go func() {
@@ -44,3 +47,33 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGHUP)
 	s.Loop(sigChan)
 }
+
+func dataHandler(w http.ResponseWriter, r *http.Request, coreChan chan func(c *server.Core)) {
+	k := r.FormValue("k")
+	if k == "" {
+		http.Error(w, "'k' required", http.StatusBadRequest)
+		return
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	coreChan <- func(c *server.Core) {
+		defer wg.Done()
+		h := w.Header()
+		h.Set("Access-Control-Allow-Origin", "*")
+		h.Set("Content-Type", "application/json")
+		s, ok := c.Stats[k]
+		if !ok {
+			http.Error(w, "{}", http.StatusNotFound)
+			return
+		}
+		var values []server.Datum
+		s.CopyValues(&values)
+		enc := json.NewEncoder(w)
+		err := enc.Encode(values)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+	wg.Wait()
+}
+
