@@ -45,7 +45,10 @@ func main() {
 
 	sigChan := make(chan os.Signal)
 	signal.Notify(sigChan, syscall.SIGHUP)
-	s.Loop(sigChan)
+	err = s.Loop(sigChan)
+	if err != nil {
+	   log.Printf("%v: error from loop", err)
+	}
 }
 
 func dataHandler(w http.ResponseWriter, r *http.Request, coreChan chan func(c *server.Core)) {
