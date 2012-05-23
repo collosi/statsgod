@@ -1,4 +1,4 @@
-package main
+package server
 
 type Datum struct {
 	Value float64 `json:"y"`

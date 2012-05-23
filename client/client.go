@@ -2,8 +2,9 @@ package client
 
 import (
 	"fmt"
-	"io"
+	//"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type update struct {
 type Client struct {
 	c          *net.UDPConn
 	updateChan chan update
+	closedSem  sync.WaitGroup
 }
 
 func Dial(addr string) (*Client, error) {
@@ -27,11 +29,14 @@ func Dial(addr string) (*Client, error) {
 		return nil, err
 	}
 
-	client := &Client{c, make(chan update, 10)}
+	client := &Client{c: c, updateChan: make(chan update, 10)}
+	client.closedSem.Add(1)
 	go func() {
 		for u := range client.updateChan {
 			client.forwardUpdate(u)
 		}
+		c.Close()
+		client.closedSem.Done()
 	}()
 	return client, nil
 }
@@ -40,8 +45,14 @@ func (c *Client) Update(k string, value float64) {
 	c.updateChan <- update{k, value}
 }
 
+func (c *Client) Close() {
+	close(c.updateChan)
+	c.closedSem.Wait()
+}
+
 func (c *Client) forwardUpdate(u update) {
-	timestamp := time.Now().Unix()
+	now := time.Now()
+	timestamp := now.Unix()
 	s := fmt.Sprintf("%s %f %d", u.k, u.v, timestamp)
-	io.WriteString(c.c, s)
+	c.c.Write([]byte(s))
 }
