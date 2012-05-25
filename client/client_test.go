@@ -6,7 +6,7 @@ import (
 
 func BenchmarkClient(b *testing.B) {
 	b.StopTimer()
-	c, err := Dial(":16536")
+	c, err := Dial(":16536", 10000000)
 	if err != nil {
 		b.Fatalf("%v", err)
 	}

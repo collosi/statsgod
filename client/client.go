@@ -19,7 +19,7 @@ type Client struct {
 	closedSem  sync.WaitGroup
 }
 
-func Dial(addr string) (*Client, error) {
+func Dial(addr string, bufferSize int) (*Client, error) {
 	a, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return nil, err
@@ -29,7 +29,7 @@ func Dial(addr string) (*Client, error) {
 		return nil, err
 	}
 
-	client := &Client{c: c, updateChan: make(chan update, 10)}
+	client := &Client{c: c, updateChan: make(chan update, bufferSize)}
 	client.closedSem.Add(1)
 	go func() {
 		for u := range client.updateChan {
