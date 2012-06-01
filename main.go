@@ -1,46 +1,100 @@
 package main
 
 import (
+	"bitbucket.org/kardianos/service"
 	"flag"
+	"fmt"
 	"github.com/laslowh/statsgod/server"
-	"log"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
+	"strconv"
 )
 
-var fConfigFile = flag.String("c", "statsgod.config", "path to config file")
+var fConfigFile = flag.String("c", "/opt/statsgod/statsgod.config", "path to config file")
 var fStatsPort = flag.Int64("p", 16536, "stats listen port (UDP)")
 var fHttpPort = flag.Int64("h", 16530, "HTTP listen port")
 
 func main() {
 	flag.Parse()
 
+	var displayName = "StatsGod statistics server"
+	var desc = "Aggregates and serves statistics"
+	var ws, err = service.NewService("statsgod", displayName, desc)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s unable to start: %s", displayName, err)
+		return
+	}
+	if len(flag.Args()) > 0 {
+		var err error
+		verb := flag.Args()[0]
+		switch verb {
+		case "install":
+			err = ws.Install()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: failed to install %q\n", err, displayName)
+				return
+			}
+			ws.LogInfo("%q: service installed.", displayName)
+		case "remove":
+			err = ws.Remove()
+			if err != nil {
+				fmt.Printf("Failed to remove: %s\n", err)
+				return
+			}
+			ws.LogInfo("%q: service removed.", displayName)
+		default:
+			fmt.Fprintf(os.Stderr, "%s: unknown command", verb)
+		}
+		return
+	}
+	err = ws.Run(func() error {
+		// start
+		err := doStart()
+		if err != nil {
+			return err
+		}
+		ws.LogInfo("%q: running", displayName)
+		return nil
+	}, func() error {
+		// stop
+		doStop()
+		ws.LogInfo("%q: stopping", displayName)
+		return nil
+	})
+	if err != nil {
+		ws.LogError(err.Error())
+	}
+}
+
+func doStart() error {
 	cf, err := server.ReadConfig(*fConfigFile)
 	if err != nil {
-		log.Fatalf("%v: error reading config file", err)
+		return err
 	}
-	s := server.NewServer(cf, *fConfigFile, *fHttpPort, *fStatsPort)
+	s := server.NewServer(cf, *fConfigFile, *fStatsPort)
 
 	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
-		DataHandler(w, r, s.FuncChan)
+		server.DataHandler(w, r, s.FuncChan)
 	})
 
-	tcpAddress, err := net.ResolveTCPAddr("tcp", ":"+strconv.FormatInt(s.HttpPort, 10))
+	tcpAddress, err := net.ResolveTCPAddr("tcp", ":"+strconv.FormatInt(*fHttpPort, 10))
 	if err != nil {
 		return err
 	}
 	tcpConn, err := net.ListenTCP("tcp", tcpAddress)
+	if err != nil {
+		return err
+	}
 	go func() {
-		err := http.Serve(tcpConn, nil)
-		if err != nil {
-			return
-		}
+		http.Serve(tcpConn, nil)
 	}()
 
-	sigChan := make(chan os.Signal)
-	signal.Notify(sigChan, syscall.SIGHUP)
-	s.Loop(sigChan)
+	go s.Loop()
+	return nil
+}
+
+func doStop() {
+
 }

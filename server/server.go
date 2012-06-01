@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +52,7 @@ type Server struct {
 	ConfigFilePath string
 	UpdateChan     chan StatUpdate
 	FuncChan       chan func(c *Core)
+	udpConn        *net.UDPConn
 }
 
 func NewServer(cf *ConfigFile, configFilePath string, statsPort int64) *Server {
@@ -76,7 +76,7 @@ func NewServer(cf *ConfigFile, configFilePath string, statsPort int64) *Server {
 	return s
 }
 
-func (s *Server) Loop(sigChan chan os.Signal) error {
+func (s *Server) Loop() error {
 
 	go s.Core.Loop(s.UpdateChan, s.FuncChan)
 
@@ -84,37 +84,27 @@ func (s *Server) Loop(sigChan chan os.Signal) error {
 	if err != nil {
 		return err
 	}
-	udpConn, err := net.ListenUDP("udp", udpAddress)
+	s.udpConn, err = net.ListenUDP("udp", udpAddress)
 	if err != nil {
 		return err
 	}
-	go func() {
-		b := make([]byte, 512)
-		for {
-			n, _, err := udpConn.ReadFromUDP(b)
-			if err != nil {
-				log.Printf("%v: error reading udp packet", err)
-			}
-			if n > 0 {
-				forwardPacket(string(b[:n]), s.UpdateChan)
-			}
-		}
-	}()
+	b := make([]byte, 512)
 	for {
-		select {
-		case _, ok := <-sigChan:
-			if !ok {
-				break
-			}
-			s.FuncChan <- func(c *Core) {
-				updateConfig(s.ConfigFile, c)
-				s.ConfigFile.Write(s.ConfigFilePath)
-			}
+		n, _, err := s.udpConn.ReadFromUDP(b)
+		if err != nil {
+			log.Printf("%v: error reading udp packet", err)
+			break
+		}
+		if n > 0 {
+			forwardPacket(string(b[:n]), s.UpdateChan)
 		}
 	}
-	udpConn.Close()
 
 	return nil
+}
+
+func (s *Server) Stop() {
+	s.udpConn.Close()
 }
 
 func updateConfig(cf *ConfigFile, c *Core) {
