@@ -72,17 +72,17 @@ func TestAddMoreThanCapacity(t *testing.T) {
 		core.Stats["c"].CopyValues(&counts)
 		core.Stats["v"].CopyValues(&vals)
 
-		if len(counts) != intMin(i, 10) {
-			t.Errorf("%d: expected %d counts", len(counts), intMin(i, 10))
+		if len(counts) != intMin(i+1, 11) {
+			t.Errorf("%d: expected %d counts", len(counts), intMin(i+1, 11))
 		}
-		if counts[len(counts)-1].T != int64(i) || counts[len(counts)-1].Value != float64(3*i) {
-			t.Errorf("%v: unexpected count entry at %d (%f)", counts[len(counts)-1], i, float64(3*i))
+		if counts[len(counts)-2].T != int64(i) || counts[len(counts)-2].Value != float64(3*i) {
+			t.Errorf("%v: unexpected count entry at %d (%f)", counts[len(counts)-2], i, float64(3*i))
 		}
-		if len(vals) != intMin(i, 10) {
-			t.Errorf("%d: expected %d vals", len(vals), intMin(i, 10))
+		if len(vals) != intMin(i+1, 11) {
+			t.Errorf("%d: expected %d vals", len(vals), intMin(i+1, 11))
 		}
-		if vals[len(vals)-1].T != int64(i) || vals[len(vals)-1].Value != float64(i*2) {
-			t.Errorf("%v: unexpected value entry at %d", vals[len(vals)-1], i)
+		if vals[len(vals)-2].T != int64(i) || vals[len(vals)-2].Value != float64(i*2) {
+			t.Errorf("%v: unexpected value entry at %d", vals[len(vals)-2], i)
 		}
 	}
 }

@@ -1,5 +1,9 @@
 package server
 
+import (
+	"time"
+)
+
 type Datum struct {
 	Value float64 `json:"y"`
 	T     int64   `json:"x"`
@@ -67,6 +71,19 @@ func (sr *StatRecord) CopyValues(arr *[]Datum) {
 	} else {
 		copy(*arr, sr.Values[sr.w:])
 		copy((*arr)[len(sr.Values)-sr.w:], sr.Values[:sr.w])
+	}
+	v := 0.0
+	t := time.Now().Unix()
+	shouldAdd := true
+	if len(*arr) != 0 {
+		last := len(*arr) - 1
+		shouldAdd = (t != (*arr)[last].T)
+		if !sr.IsCounter {
+			v = (*arr)[last].Value
+		}
+	}
+	if shouldAdd {
+		*arr = append(*arr, Datum{Value: v, T: t})
 	}
 }
 
