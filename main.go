@@ -2,6 +2,7 @@ package main
 
 import (
 	"bitbucket.org/kardianos/service"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/laslowh/statsgod/server"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 )
 
 var fConfigFile = flag.String("c", "/opt/statsgod/statsgod.config", "path to config file")
@@ -76,7 +78,7 @@ func doStart() error {
 	s := server.NewServer(cf, *fConfigFile, *fStatsPort)
 
 	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
-		server.DataHandler(w, r, s.FuncChan)
+		dataHandler(w, r, s.FuncChan)
 	})
 
 	tcpAddress, err := net.ResolveTCPAddr("tcp", ":"+strconv.FormatInt(*fHttpPort, 10))
@@ -97,4 +99,33 @@ func doStart() error {
 
 func doStop() {
 
+}
+
+func dataHandler(w http.ResponseWriter, r *http.Request, coreChan chan func(c *server.Core)) {
+	k := r.FormValue("k")
+	if k == "" {
+		http.Error(w, "'k' required", http.StatusBadRequest)
+		return
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	coreChan <- func(c *server.Core) {
+		defer wg.Done()
+		h := w.Header()
+		h.Set("Access-Control-Allow-Origin", "*")
+		h.Set("Content-Type", "application/json")
+		s, ok := c.Stats[k]
+		if !ok {
+			http.Error(w, "{}", http.StatusNotFound)
+			return
+		}
+		var values []server.Datum
+		s.CopyValues(&values)
+		enc := json.NewEncoder(w)
+		err := enc.Encode(values)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+	wg.Wait()
 }
