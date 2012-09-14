@@ -1,38 +1,61 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
-type Server struct {
-	StatsPort      int64
-	Core           *Core
-	ConfigFile     *ConfigFile
-	ConfigFilePath string
-	UpdateChan     chan StatUpdate
-	FuncChan       chan func(c *Core)
-	udpConn        *net.UDPConn
+type MetricUpdate struct {
+	Name      string
+	Value     float64
+	Timestamp int64
+	IsCounter bool
 }
 
-func NewServer(cf *ConfigFile, configFilePath string, statsPort int64) *Server {
-	s := &Server{
-		StatsPort:      statsPort,
-		Core:           NewCore(),
-		ConfigFile:     cf,
-		ConfigFilePath: configFilePath,
-		UpdateChan:     make(chan StatUpdate, 10),
-		FuncChan:       make(chan func(c *Core), 10),
-	}
+type metric struct {
+	name      string
+	value     float64
+	updatedAt int64
+	isCounter bool
+	sentAt    int64
+	mutex     sync.Mutex
+}
 
-	for _, stat := range cf.Stats {
-		s.Core.Stats[stat.Key] = &StatRecord{
-			Name:      stat.Name,
-			IsCounter: stat.IsCounter,
-			Capacity:  stat.Capacity,
-		}
+func (m *metric) update(value float64, updated int64, isCounter bool) error {
+	if isCounter != m.isCounter {
+		return fmt.Errorf("%s: metric type mismatch", m.name)
+	}
+	m.mutex.Lock()
+	if isCounter {
+		m.value += value
+	} else {
+		m.value = value
+	}
+	m.updatedAt = updated
+	m.mutex.Unlock()
+	return nil
+}
+
+type Server struct {
+	StatsPort    int64
+	metrics      map[string]*metric
+	metricsMutex sync.Mutex
+	updateCond  *sync.Cond
+	updateChan   chan MetricUpdate
+	udpConn      *net.UDPConn
+}
+
+func NewServer(statsPort int64, updates chan MetricUpdate) *Server {
+	s := &Server{
+		StatsPort:  statsPort,
+		metrics:    make(map[string]*metric),
+		updateCond: sync.NewCond(new(sync.Mutex)),
+		updateChan: updates,
 	}
 
 	return s
@@ -40,7 +63,7 @@ func NewServer(cf *ConfigFile, configFilePath string, statsPort int64) *Server {
 
 func (s *Server) Loop() error {
 
-	go s.Core.Loop(s.UpdateChan, s.FuncChan)
+	go s.sendLoop()
 
 	udpAddress, err := net.ResolveUDPAddr("udp", ":"+strconv.FormatInt(s.StatsPort, 10))
 	if err != nil {
@@ -58,48 +81,77 @@ func (s *Server) Loop() error {
 			break
 		}
 		if n > 0 {
-			forwardPacket(string(b[:n]), s.UpdateChan)
+			s.handlePacket(string(b[:n]))
 		}
 	}
 
 	return nil
 }
 
+func (s *Server) sendLoop() {
+     for {
+	nowMillis := time.Now().UnixNano() / (1e6)
+
+	s.metricsMutex.Lock()
+	for _, m := range s.metrics {
+		if m.sentAt < m.updatedAt && (nowMillis-m.sentAt) > 200 {
+		println("sending", m.name)
+			s.updateChan <- MetricUpdate{Name: m.name, Value: m.value, Timestamp: (m.updatedAt / 1000), IsCounter: m.isCounter}
+		} else {
+		println("not sending", m.sentAt, m.updatedAt, nowMillis)
+}
+		m.sentAt = nowMillis
+	}
+	s.metricsMutex.Unlock()
+
+     	// not exactly typical use of condition variables, but all we really want to do
+	// is wait for an update to come in...
+     	s.updateCond.L.Lock()
+	s.updateCond.Wait()
+	s.updateCond.L.Unlock()
+	}
+}
+
 func (s *Server) Stop() {
+	close(s.updateChan)
 	s.udpConn.Close()
 }
 
-func updateConfig(cf *ConfigFile, c *Core) {
-	for k, r := range c.Stats {
-		found := false
-		for _, s := range cf.Stats {
-			if k == s.Key {
-				found = true
-			}
-			break
-		}
-		if !found {
-			cf.Stats = append(cf.Stats, StatConfig{Name: r.Name, Key: k, IsCounter: r.IsCounter})
-		}
-	}
-}
-
-func forwardPacket(s string, suc chan StatUpdate) {
-	split := strings.Split(s, " ")
+func (s *Server) handlePacket(str string) {
+	split := strings.Split(str, " ")
 	if len(split) != 3 {
-		log.Printf("%s: bad packet", s)
+		log.Printf("%s: bad packet", str)
 		return
 	}
+	name := split[0]
 	f, err := strconv.ParseFloat(split[1], 64)
 	if err != nil {
-		log.Printf("%s: bad value (%s)", split[1], split[0])
+		log.Printf("%s: bad value (%s)", split[1], name)
 		return
 	}
-	t, err := strconv.ParseInt(strings.TrimSpace(split[2]), 10, 64)
-	if err != nil {
-		log.Printf("%s: bad timestamp (%s)", split[2], split[0])
+	isCounter := true
+	switch split[2] {
+	case "G":
+		isCounter = false
+	case "C":
+		isCounter = true
+	default:
+		log.Printf("%s: bad value (%s)", split[1], name)
 		return
 	}
-	suc <- StatUpdate{Key: split[0], Value: f, Timestamp: t}
+	t := time.Now().UnixNano() / (1e6)
 
+	m, ok := s.metrics[name]
+	if !ok {
+		m = &metric{name: name, value: f, updatedAt: t, isCounter: isCounter}
+		s.metricsMutex.Lock()
+		s.metrics[name] = m
+		s.metricsMutex.Unlock()
+	}
+	err = m.update(f, t, isCounter)
+	if err != nil {
+		log.Printf("%v", err)
+	}
+	s.updateCond.Signal()
+	return
 }
