@@ -4,8 +4,8 @@ import (
 	"bitbucket.org/kardianos/service"
 	"flag"
 	"fmt"
-	statsgod "github.com/laslowh/statsgod/server"
 	"github.com/laslowh/statsgod/datadog"
+	statsgod "github.com/laslowh/statsgod/server"
 	"os"
 )
 
@@ -86,7 +86,7 @@ func doStop(s *statsgod.Server) {
 
 func forwardUpdates(ddc *datadog.Client, ch chan statsgod.MetricUpdate) {
 	for u := range ch {
-	    //fmt.Printf("forwarding update %v\n", u)
+		//fmt.Printf("forwarding update %v\n", u)
 		err := ddc.SendMetricUpdate(u.Name, u.Value, u.Timestamp, u.IsCounter, *fDefaultHost, *fDefaultDevice, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v: error sending metric update\n", err)

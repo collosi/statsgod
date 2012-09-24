@@ -45,7 +45,7 @@ type Server struct {
 	StatsPort    int64
 	metrics      map[string]*metric
 	metricsMutex sync.Mutex
-	updateCond  *sync.Cond
+	updateCond   *sync.Cond
 	updateChan   chan MetricUpdate
 	udpConn      *net.UDPConn
 }
@@ -89,23 +89,23 @@ func (s *Server) Loop() error {
 }
 
 func (s *Server) sendLoop() {
-     for {
-	nowMillis := time.Now().UnixNano() / (1e6)
+	for {
+		nowMillis := time.Now().UnixNano() / (1e6)
 
-	s.metricsMutex.Lock()
-	for _, m := range s.metrics {
-		if m.sentAt < m.updatedAt && (nowMillis-m.sentAt) > 200 {
-			s.updateChan <- MetricUpdate{Name: m.name, Value: m.value, Timestamp: (m.updatedAt / 1000), IsCounter: m.isCounter}
-			m.sentAt = nowMillis
+		s.metricsMutex.Lock()
+		for _, m := range s.metrics {
+			if m.sentAt < m.updatedAt && (nowMillis-m.sentAt) > 200 {
+				s.updateChan <- MetricUpdate{Name: m.name, Value: m.value, Timestamp: (m.updatedAt / 1000), IsCounter: m.isCounter}
+				m.sentAt = nowMillis
+			}
 		}
-	}
-	s.metricsMutex.Unlock()
+		s.metricsMutex.Unlock()
 
-     	// not exactly typical use of condition variables, but all we really want to do
-	// is wait for an update to come in...
-     	s.updateCond.L.Lock()
-	s.updateCond.Wait()
-	s.updateCond.L.Unlock()
+		// not exactly typical use of condition variables, but all we really want to do
+		// is wait for an update to come in...
+		s.updateCond.L.Lock()
+		s.updateCond.Wait()
+		s.updateCond.L.Unlock()
 	}
 }
 
