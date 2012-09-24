@@ -95,12 +95,9 @@ func (s *Server) sendLoop() {
 	s.metricsMutex.Lock()
 	for _, m := range s.metrics {
 		if m.sentAt < m.updatedAt && (nowMillis-m.sentAt) > 200 {
-		println("sending", m.name)
 			s.updateChan <- MetricUpdate{Name: m.name, Value: m.value, Timestamp: (m.updatedAt / 1000), IsCounter: m.isCounter}
-		} else {
-		println("not sending", m.sentAt, m.updatedAt, nowMillis)
-}
-		m.sentAt = nowMillis
+			m.sentAt = nowMillis
+		}
 	}
 	s.metricsMutex.Unlock()
 
