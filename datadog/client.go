@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 )
 
 const (
@@ -68,15 +67,15 @@ func (c *Client) SendMetricUpdate(name string, value float64, timestamp int64, i
 	enc := json.NewEncoder(buf)
 	enc.Encode(&series)
 	io.WriteString(buf, "]}")
-	println("updating", buf.String())
 
 	url := METRIC_UPDATE_URL + c.authSuffix
 	r, err := http.Post(url, JSON_MIME_TYPE, buf)
 	if err != nil {
 		return err
 	}
+	r.Body.Close()
 
-	r.Write(os.Stderr)
+	//r.Write(os.Stderr)
 	if r.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("%s: unexpected response code", r.Status)
 	}
